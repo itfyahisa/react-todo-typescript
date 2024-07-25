@@ -1,11 +1,17 @@
 import React, { useEffect, useState } from "react";
 import "./App.css";
 import TodoItem from "./components/TodoItem";
+import CreateTodo from "./components/CreateTodo";
+import { addDoc, collection, deleteDoc, doc, DocumentData, FirestoreDataConverter, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
+import db from "./firebase";
+import { v4 as uuid } from "uuid";
 
 export type Todo = {
     id: number,
     text: string,
-    status: StatusType
+    status: StatusType,
+    timestamp: Date
+    uuid: string
 }
 
 export type StatusType = "未着手" | "進行中" | "完了済"
@@ -13,29 +19,65 @@ export type FilterStatus = "すべて" | "未着手" | "進行中" | "完了済"
 
 const App: React.FC = () => {
 
-    const [todos, setTodos] = useState<Todo[]>([
-        { id: 1, text: "test1", status: "未着手" },
-        { id: 2, text: "test2", status: "進行中" },
-        { id: 3, text: "test3", status: "完了済" }
-    ])
-    const [TodoText, setTodoText] = useState<string>("")
+    const [todos, setTodos] = useState<Todo[]>([])
+    const [todoText, setTodoText] = useState<string>("")
+    const [filterStatus, setFilterStatus] = useState<FilterStatus>("すべて")
+    const [statusFilteredTodos, setStatusFilteredTodos] = useState<Todo[]>([])
 
     const onChangeTodoText = (e: React.ChangeEvent<HTMLInputElement>) => {
         setTodoText(e.target.value)
     }
 
-    const addTodo = () => {
-        const newTodo: Todo = {
+    const addTodo = (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.preventDefault()
+        // const newTodo: Todo = {
+        //     id: todos.length + 1,
+        //     text: todoText,
+        //     status: "未着手"
+        // }
+        // const newTodos: Todo[] = [...todos, newTodo]
+        // setTodos(newTodos)
+        // setTodoText("")
+
+        addDoc(collection(db, "todos"), {
             id: todos.length + 1,
-            text: TodoText,
-            status: "未着手"
-        }
-        const newTodos: Todo[] = [...todos, newTodo]
-        setTodos(newTodos)
-        setTodoText("")
+            text: todoText,
+            status: "未着手",
+            timestamp: serverTimestamp(),
+            uuid: uuid()
+        })
+
     }
 
-    const deleteTodo = (id: number) => {
+    const postConverter: FirestoreDataConverter<Todo> = {
+        toFirestore(todo: Todo): DocumentData {
+            return { ...todo }
+        },
+        fromFirestore(snapshot, options) {
+            const data = snapshot.data(options)
+            return {
+                id: data.id,
+                text: data.text,
+                status: data.status,
+                timestamp: data.timestamp,
+                uuid: data.uuid
+            }
+        },
+    }
+
+    useEffect(() => {
+        const fetchTodos = () => {
+            const postData = collection(db, "todos").withConverter(postConverter)
+            const q = query(postData, orderBy("timestamp", "asc"))
+            onSnapshot(q, (QuerySnapshot) => {
+                setTodos(QuerySnapshot.docs.map((doc) => doc.data()))
+            })
+        }
+        fetchTodos()
+    }, [])
+
+    const deleteTodo = async (id: number, uuid: string) => {
+        await deleteDoc(doc(db, "todos", uuid))
         const deleteTodoById: Todo[] = todos.filter((todo) => todo.id !== id)
         setTodos(deleteTodoById)
     }
@@ -47,11 +89,8 @@ const App: React.FC = () => {
         setTodos(updatedTodos)
     }
 
-    const [filterStatus, setFilterStatus] = useState<FilterStatus>("すべて")
-    const [statusFilteredTodos, setStatusFilteredTodos] = useState<Todo[]>([])
-
     const onChangeFilterStatus = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setFilterStatus(e.target.value as StatusType)
+        (setFilterStatus(e.target.value as StatusType))
     }
 
     useEffect(() => {
@@ -62,18 +101,14 @@ const App: React.FC = () => {
         }
     }, [filterStatus, todos])
 
-
-
     return (
         <div className="App">
 
             <h1>Todo</h1>
 
             <p>新規作成</p>
-            <div className="addTodo">
-                <input type="text" value={TodoText} onChange={onChangeTodoText} />
-                <button onClick={addTodo}>追加</button>
-            </div>
+            <CreateTodo todoText={todoText} onChangeTodoText={onChangeTodoText} addTodo={addTodo} />
+
 
             <p>一覧表示</p>
             <div className="filter">

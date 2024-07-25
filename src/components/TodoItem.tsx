@@ -3,7 +3,7 @@ import { StatusType, Todo } from '../App'
 
 type TodoItemProps = {
     todo: Todo,
-    deleteTodo: (id: number) => void
+    deleteTodo: (id: number, uuid: string) => void
     updateTodo: (id: number, text: string, status: StatusType) => void
 }
 
@@ -34,7 +34,7 @@ const TodoItem: React.FC<TodoItemProps> = ({ todo, deleteTodo, updateTodo }) => 
                     <>
                         <p>{todo.id} : {todo.text} : {todo.status}</p>
                         <button onClick={onClickEdit}>編集</button>
-                        <button onClick={() => deleteTodo(todo.id)}>削除</button>
+                        <button onClick={() => deleteTodo(todo.id, todo.uuid)}>削除</button>
                     </>
                 ) : (
                     <>
